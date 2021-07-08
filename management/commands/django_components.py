@@ -37,7 +37,10 @@ class Command(BaseCommand):
                 
                 for comp in components:
                     comp_path_array = str(comp).split('/')
-                    comp_name = comp_path_array[-1]
+                    comp_name = str(comp_path_array[-1])
+                    class_comp_name = ''.join(
+                        s.capitalize() for s in comp_name.split('_')
+                    ) if '_' in comp_name else comp_name.capitalize() 
 
                     extensions = ['css', 'html', 'js', 'py']
 
@@ -47,7 +50,7 @@ class Command(BaseCommand):
 
                     templ_replacement = {
                         'name': comp_name,
-                        'class_name': comp_name.capitalize()
+                        'class_name': class_comp_name
                     }
 
                     for ext in extensions:
