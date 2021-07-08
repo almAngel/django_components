@@ -1,6 +1,8 @@
 from django.core.management.base import BaseCommand
-import os
 from django.conf import settings
+from pathlib import Path
+import os
+from string import Template
 
 class Command(BaseCommand):
     help = '>> Django Components manager. This tool is used to maintain django_components projects.'
@@ -29,9 +31,39 @@ class Command(BaseCommand):
 
         elif generate:
 
+            generated = True
+
             if components:
+                
                 for comp in components:
                     comp_path_array = str(comp).split('/')
                     comp_name = comp_path_array[-1]
 
-                    self.stdout.write(f'>> Component {comp_name} generated in {"/".join(comp_path_array[:-1])}')
+                    extensions = ['css', 'html', 'js', 'py']
+
+                    path =  f'{settings.BASE_DIR}/{"/".join(comp_path_array)}/'
+
+                    Path(path).mkdir(parents=True, exist_ok=True)
+
+                    templ_replacement = {
+                        'name': comp_name,
+                        'class_name': comp_name.capitalize()
+                    }
+
+                    for ext in extensions:
+                        
+                        filepath = path + comp_name + '.' + ext
+                        templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/{ext}.templ'))
+
+                        if not os.path.exists(filepath):
+                            with open(templpath, 'r') as templ_file, open(filepath, 'w') as out_file:
+                                source = Template(templ_file.read())
+                                filled_templ = source.substitute(templ_replacement)
+                                out_file.write(filled_templ)
+                        else:
+                            generated = False
+                            
+                    if generated:
+                        self.stdout.write(f'>> Component {comp_name} generated in {"/".join(comp_path_array)}/')
+                    else:
+                        self.stdout.write(f'>> Component {comp_name} already exists.')

@@ -1,0 +1,16 @@
+from django_components import component
+
+@component.register('$name')
+class $class_name(component.Component):
+    def context(self, name):
+        return {
+            "class": '$name',
+            # Place your html tag attributes here
+        }
+
+    def template(self, context):
+        return "$name.html"
+
+    class Media:
+        css = '$name.css'
+        js = '$name.js'

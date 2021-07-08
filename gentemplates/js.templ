@@ -1,1 +1,11 @@
-/* This is where component reactions should be created */
+// This is where component reactions should be created
+
+(
+    () => {
+        $$(".$name").click(
+            () => { 
+                alert("Clicked $name!"); 
+            }
+        )
+    }
+)()
