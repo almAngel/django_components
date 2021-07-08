@@ -1,14 +1,20 @@
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from pathlib import Path
-import os
+import os, sys
+import inspect, importlib as implib
 from string import Template
 
 class Command(BaseCommand):
     help = '>> Django Components manager. This tool is used to maintain django_components projects.'
 
+    root = settings.BASE_DIR
+    appname = str(settings.BASE_DIR).split('/')[-1]
+    root_app = root / appname
+    components_base = ''
+
     def add_arguments(self, parser):
-        parser.add_argument('-i', '--initialize', action='store_true', help='Set up Django Components')
+        parser.add_argument('-i', '--initialize', type=str, help='Set up Django Components')
         parser.add_argument('-g', '--generate', action='store_true', help='Generate elements')
         parser.add_argument('-c', '--component', nargs='+', type=str, help='Select component as element to operate with')
 
@@ -18,24 +24,54 @@ class Command(BaseCommand):
         components = kwargs['component']
 
         if initialize:
-            self.stdout.write('>> Creating component.py file and adding it to your project...')
 
-            path =  settings.BASE_DIR / \
-                    str(settings.BASE_DIR).split('/')[len(str(settings.BASE_DIR).split('/'))-1] / \
-                    'components.py'
+            componentsfile_path = self.root_app / 'components.py'
+            settings_path = str(self.root_app / 'settings.py')
+            self.components_base = initialize
 
-            if not os.path.exists(path):
-                with open(path, 'w'): pass
+            if not os.path.exists(componentsfile_path):
+                self.stdout.write('>> Creating component.py file and adding it to your project...')
+
+                lines = []
+                with open(settings_path, 'r+') as settings_file:
+                    lines = settings_file.readlines()
+                    for i, l in enumerate(lines):
+                        if 'import' in l:
+                            if 'os' not in sys.modules['componentes.settings'].__dir__():
+                                lines.insert(i + 1, 'import os\n')
+                                break
+                        
+                with open(settings_path, 'w') as settings_file:
+                    lines = "".join(lines)
+                    settings_file.write(lines)
+
+                with open(componentsfile_path, 'w'), open(settings_path, 'a') as settings_file: 
+                    if not hasattr(settings, 'COMPONENTS'):
+                        settings_file.write(
+                            (
+                            '\n\n# DJANGO_COMPONENTS PLUGIN\n'
+                            'COMPONENTS = {\n'
+                                '\t\'libraries\': [\n'
+                                    f'\t\t\'{self.appname}.components\'\n'
+                                '\t]\n'
+                            '}\n'
+                            'COMPONENTS_BASE = ' + f'f\'{{BASE_DIR}}/{self.components_base}\''
+                            '\nCOMPONENTS_DIRS = [ dir for dir in os.listdir(COMPONENTS_BASE) if os.path.isdir(os.path.join(COMPONENTS_BASE, dir)) ]'
+                            )
+                        ) 
+                        settings_file.close()
+
             else:
                 self.stdout.write('>> Components file already initialized.')
-
-        elif generate:
+        else: 
+            self.stdout.write('>> Error: Initialization path cannot be empty.')
+        if generate:
 
             generated = True
 
             if components:
                 
-                for comp in components:
+                for i, comp in enumerate(components):
                     comp_path_array = str(comp).split('/')
                     comp_name = str(comp_path_array[-1])
                     class_comp_name = ''.join(
@@ -44,7 +80,9 @@ class Command(BaseCommand):
 
                     extensions = ['css', 'html', 'js', 'py']
 
-                    path =  f'{settings.BASE_DIR}/{"/".join(comp_path_array)}/'
+                    path =  f'{self.root}/{"/".join(comp_path_array)}/'
+                    module_path = comp_path_array[0]
+                    components_path = self.root_app / 'components.py'
 
                     Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -59,6 +97,7 @@ class Command(BaseCommand):
                         templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/{ext}.templ'))
 
                         if not os.path.exists(filepath):
+                            # CREATE FILES
                             with open(templpath, 'r') as templ_file, open(filepath, 'w') as out_file:
                                 source = Template(templ_file.read())
                                 filled_templ = source.substitute(templ_replacement)
@@ -67,6 +106,13 @@ class Command(BaseCommand):
                             generated = False
                             
                     if generated:
+                        # ADD COMPONENT TO components.py file
+                        with open(components_path, 'a') as components_file:
+                            importline = f'from {str(comp).replace("/", ".")} import {comp_name}\n'
+
+                            components_file.write(importline)
+                            components_file.close()
+
                         self.stdout.write(f'>> Component {comp_name} generated in {"/".join(comp_path_array)}/')
                     else:
                         self.stdout.write(f'>> Component {comp_name} already exists.')
