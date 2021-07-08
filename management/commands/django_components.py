@@ -8,11 +8,12 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('-i', '--initialize', action='store_true', help='Set up Django Components')
         parser.add_argument('-g', '--generate', action='store_true', help='Generate elements')
-        parser.add_argument('-g', '--generate', action='store_true', help='Generate elements')
+        parser.add_argument('-c', '--component', nargs='+', type=str, help='Select component as element to operate with')
 
     def handle(self, *args, **kwargs):
         initialize = kwargs['initialize']
         generate = kwargs['generate']
+        components = kwargs['component']
 
         if initialize:
             self.stdout.write('>> Creating component.py file and adding it to your project...')
@@ -25,3 +26,12 @@ class Command(BaseCommand):
                 with open(path, 'w'): pass
             else:
                 self.stdout.write('>> Components file already initialized.')
+
+        elif generate:
+
+            if components:
+                for comp in components:
+                    comp_path_array = str(comp).split('/')
+                    comp_name = comp_path_array[-1]
+
+                    self.stdout.write(f'>> Component {comp_name} generated in {"/".join(comp_path_array[:-1])}')
