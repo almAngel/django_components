@@ -2,14 +2,14 @@ from django_components import component
 
 @component.register('$name')
 class $class_name(component.Component):
-    def context(self, name):
+    def context(self): # Add your html attributes as parameters 
         return {
-            "class": '$name',
-            # Place your html tag attributes here
+            'class': '$name',
+            # Place your html tag attributes here. Eg: 'color': 'white'
         }
 
     def template(self, context):
-        return "$name.html"
+        return '$name.html'
 
     class Media:
         css = '$name.css'
