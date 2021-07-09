@@ -118,6 +118,33 @@ class Command(BaseCommand):
                     lines = ''.join(lines)
                     settings_file.write(lines)
                     settings_file.close()
+
+                # ADD TO STATIC
+                lines = []
+                if 'STATICFILES_DIRS' not in sys.modules[f'{self.appname}.settings'].__dir__():
+                    with open(settings_path, 'a') as settings_file:
+                        settings_file.write(
+                            (
+                                f'STATICFILES_DIRS = [os.path.join(BASE_DIR, \'{self.components_base}/\') + comp for comp in COMPONENTS_DIRS if comp != \'__pycache__\'] + \\\n'
+                                '[] # PLACE YOUR OWN DIRECTORIES HERE' 
+                            )
+                        )
+                        settings_file.close()   
+                else:
+                    with open(settings_path, 'r+') as settings_file:
+                        lines = settings_file.readlines()
+                        for i, l in enumerate(lines):
+                            if 'STATICFILES_DIRS' in l:
+                                lines[i] = lines[i].replace(
+                                    'STATICFILES_DIRS =', 
+                                    'STATICFILES_DIRS = ' + f'[os.path.join(BASE_DIR, \'{self.components_base}/\') + comp for comp in COMPONENTS_DIRS if comp != \'__pycache__\'] + \\\n'
+                                )
+                                break
+
+                    with open(settings_path, 'w') as settings_file:
+                        lines = ''.join(lines)
+                        settings_file.write(lines)
+                        settings_file.close()
                 
             else:
                 self.stdout.write('>> Components file already initialized.')
@@ -125,55 +152,59 @@ class Command(BaseCommand):
 
             generated = True
 
-            if components:
-                
-                for i, comp in enumerate(components):
-                    comp_path_array = str(comp).split('/')
-                    comp_name = str(comp_path_array[-1])
-                    class_comp_name = ''.join(
-                        s.capitalize() for s in comp_name.split('_')
-                    ) if '_' in comp_name else comp_name.capitalize() 
+            if 'COMPONENTS_BASE' in sys.modules[f'{self.appname}.settings'].__dir__():
 
-                    extensions = ['css', 'html', 'js', 'py']
+                if components:
+                    
+                    for i, comp in enumerate(components):
+                        comp_path_array = str(comp).split('/')
+                        comp_name = str(comp_path_array[-1])
+                        class_comp_name = ''.join(
+                            s.capitalize() for s in comp_name.split('_')
+                        ) if '_' in comp_name else comp_name.capitalize() 
 
-                    # path =  f'{self.root}/{"/".join(comp_path_array)}/'
-                    # module_path = comp_path_array[0]
-                    components_path = self.root_app / 'components.py'
+                        extensions = ['css', 'html', 'js', 'py']
 
-                    # Path(path).mkdir(parents=True, exist_ok=True)
+                        # path =  f'{self.root}/{"/".join(comp_path_array)}/'
+                        # module_path = comp_path_array[0]
+                        components_path = self.root_app / 'components.py'
 
-                    templ_replacement = {
-                        'name': comp_name,
-                        'class_name': class_comp_name
-                    }
+                        # Path(path).mkdir(parents=True, exist_ok=True)
 
-                    for ext in extensions:
-                        
-                        filedir = f'{settings.COMPONENTS_BASE}/{comp_name}/'
-                        filepath = filedir + comp_name + '.' + ext
-                        # print(filepath)
-                        templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/{ext}.templ'))
+                        templ_replacement = {
+                            'name': comp_name,
+                            'class_name': class_comp_name
+                        }
 
-                        Path(filedir).mkdir(parents=True, exist_ok=True)
-
-                        if not os.path.exists(filepath):
-                            # CREATE FILES
-                            with open(templpath, 'r') as templ_file, open(filepath, 'w') as out_file:
-                                source = Template(templ_file.read())
-                                filled_templ = source.substitute(templ_replacement)
-                                out_file.write(filled_templ)
-                        else:
-                            generated = False
+                        for ext in extensions:
                             
-                    if generated:
-                        # ADD COMPONENT TO components.py file
-                        with open(components_path, 'a') as components_file:
-                            relative_comp_base = str(settings.COMPONENTS_BASE).split(str(settings.BASE_DIR))[1][1:]
-                            importline = f'from {relative_comp_base.replace("/", ".")}.{comp} import {comp_name}\n'
+                            filedir = f'{settings.COMPONENTS_BASE}/{comp_name}/'
+                            filepath = filedir + comp_name + '.' + ext
+                            # print(filepath)
+                            templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/{ext}.templ'))
 
-                            components_file.write(importline)
-                            components_file.close()
+                            Path(filedir).mkdir(parents=True, exist_ok=True)
 
-                        self.stdout.write(f'>> Component {comp_name} generated in {relative_comp_base}/{comp}/')
-                    else:
-                        self.stdout.write(f'>> Component {comp_name} already exists.')
+                            if not os.path.exists(filepath):
+                                # CREATE FILES
+                                with open(templpath, 'r') as templ_file, open(filepath, 'w') as out_file:
+                                    source = Template(templ_file.read())
+                                    filled_templ = source.substitute(templ_replacement)
+                                    out_file.write(filled_templ)
+                            else:
+                                generated = False
+                                
+                        if generated:
+                            # ADD COMPONENT TO components.py file
+                            with open(components_path, 'a') as components_file:
+                                relative_comp_base = str(settings.COMPONENTS_BASE).split(str(settings.BASE_DIR))[1][1:]
+                                importline = f'from {relative_comp_base.replace("/", ".")}.{comp} import {comp_name}\n'
+
+                                components_file.write(importline)
+                                components_file.close()
+
+                            self.stdout.write(f'>> Component {comp_name} generated in {relative_comp_base}/{comp}/')
+                        else:
+                            self.stdout.write(f'>> Component {comp_name} already exists.')
+            else:
+                self.stdout.write(f'>> Plugin settings not initialized.')
