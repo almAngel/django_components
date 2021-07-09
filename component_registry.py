@@ -22,6 +22,7 @@ class ComponentRegistry(object):
         del self._registry[name]
 
     def get(self, name):
+        print(self._registry)
         if name not in self._registry:
             raise NotRegistered('The component "%s" is not registered' % name)
 

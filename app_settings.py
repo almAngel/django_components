@@ -10,7 +10,6 @@ COMPONENTSFILE_PATH = ROOT_APP / 'components.py'
 
 class AppSettings:
     def __init__(self):
-        self.settings = setattr(settings, "COMPONENTS", {})
         self.settings = getattr(settings, "COMPONENTS", {})
 
     @property
@@ -46,4 +45,4 @@ app_settings.__name__ = __name__
 sys.modules[__name__] = app_settings
 
 # print(getattr(settings, "COMPONENTS"))
-print(app_settings.__getattribute__('LIBRARIES'))
+# print(app_settings.__getattribute__('LIBRARIES'))

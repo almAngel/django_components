@@ -39,28 +39,30 @@ class Command(BaseCommand):
                     lines = settings_file.readlines()
                     for i, l in enumerate(lines):
                         if 'import' in l:
-                            if 'os' not in sys.modules['componentes.settings'].__dir__():
+                            if 'os' not in sys.modules[f'{self.appname}.settings'].__dir__():
                                 lines.insert(i + 1, 'import os\n')
-                                settings_file.close()
                                 break
+                    settings_file.close()
                         
                 with open(settings_path, 'w') as settings_file:
                     lines = "".join(lines)
                     settings_file.write(lines)
                     settings_file.close()
+                
+                Path(f'{settings.BASE_DIR}/{self.components_base}').mkdir(parents=True, exist_ok=True)
 
                 # ADD COMPONENTS BLOCK
                 lines = []
-                with open(componentsfile_path, 'w'), open(settings_path, 'r+') as settings_file: 
-                    if not hasattr(settings, 'COMPONENTS'):
+                with open(componentsfile_path, 'w'), \
+                    open(settings_path, 'r+') as settings_file:
+                    
+                    if 'COMPONENTS' not in sys.modules[f'{self.appname}.settings'].__dir__():
                         lines = settings_file.readlines()
 
                         for i, l in enumerate(lines):
 
                             if 'BASE_DIR' in l:
-                                lines.insert(
-                                    i + 2, 
-                                    (
+                                lines[i + 2] = (
                                     '\n# DJANGO_COMPONENTS PLUGIN\n'
                                     'COMPONENTS = {\n'
                                         '\t\'libraries\': [\n'
@@ -68,59 +70,57 @@ class Command(BaseCommand):
                                         '\t]\n'
                                     '}\n'
                                     'COMPONENTS_BASE = ' + f'f\'{{BASE_DIR}}/{self.components_base}\''
-                                    '\nCOMPONENTS_DIRS = [ dir for dir in os.listdir(COMPONENTS_BASE) if os.path.isdir(os.path.join(COMPONENTS_BASE, dir)) ]\n'
-                                    )
+                                    '\nCOMPONENTS_DIRS = [ dir for dir in os.listdir(COMPONENTS_BASE) if os.path.isdir(os.path.join(COMPONENTS_BASE, dir)) ]\n\n'
                                 )
                                 break
                     settings_file.close()
                 with open(settings_path, 'w') as settings_file:
-                    lines = "".join(lines)
+                    lines = ''.join(lines)
                     settings_file.write(lines)
                     settings_file.close()
                 
-                # # ADD TEMPLATE DIRS
-                # lines = []
-                # with open(componentsfile_path, 'w'), open(settings_path, 'r+') as settings_file: 
-                #     lines = settings_file.readlines()
+                # ADD TEMPLATE DIRS
+                lines = []
+                with open(settings_path, 'r+') as settings_file: 
+                    lines = settings_file.readlines()
 
-                #     for i, l in enumerate(lines):
-                #         if 'APP_DIRS' in l:
-                #             lines[i-1] = lines[i-1].replace('\n', '')
-                #             exploded = lines[i-1].split(',')
-                #             exploded[1] += f' + [os.path.join(BASE_DIR, \'./{self.components_base}\') + comp for comp in COMPONENTS_DIRS],\n'
-                #             lines[i-1] = ''.join(exploded)
-                #             break
+                    for i, l in enumerate(lines):
+                        if 'APP_DIRS' in l:
+                            lines[i-1] = lines[i-1].replace('\n', '')
+                            exploded = lines[i-1].split(',')
+                            exploded[1] += f' + [os.path.join(BASE_DIR, \'{self.components_base}/\') + comp for comp in COMPONENTS_DIRS if comp != \'__pycache__\'],\n'
+                            lines[i-1] = ''.join(exploded)
+                            break
                         
-                #     settings_file.close()
+                    settings_file.close()
 
-                # with open(settings_path, 'w') as settings_file:
-                #     lines = "".join(lines)
-                #     settings_file.write(lines)
-                #     settings_file.close()
+                with open(settings_path, 'w') as settings_file:
+                    lines = ''.join(lines)
+                    settings_file.write(lines)
+                    settings_file.close()
 
-                # # ADD BUILTIN COMPONENT_TAGS
-                # lines = []
-                # with open(componentsfile_path, 'w'), open(settings_path, 'r+') as settings_file: 
-                #     lines = settings_file.readlines()
+                # ADD BUILTIN COMPONENT_TAGS
+                lines = []
+                with open(settings_path, 'r+') as settings_file: 
+                    lines = settings_file.readlines()
 
-                #     for i, l in enumerate(lines):
-                #         if 'OPTIONS' in l[i:]:
-                #             lines[i-1] = lines[i-1].replace('\n', '')
-                #             exploded = lines[i-1].split(',')
-                #             exploded[1] += f' + [os.path.join(BASE_DIR, \'./{self.components_base}\') + comp for comp in COMPONENTS_DIRS],\n'
-                #             lines[i-1] = ''.join(exploded)
-                #             break
-                #     settings_file.close()
+                    for i, l in enumerate(lines):
+                        if 'context_processors' in l and 'OPTIONS' in lines[i-1]:
+                            lines.insert(i, (
+                                '\t\t\t\'builtins\': [\n'
+                                    '\t\t\t\t\'django_components.templatetags.component_tags\',\n'
+                                '\t\t\t],\n'
+                            ))
+                            break
+                    settings_file.close()
 
-                # with open(settings_path, 'w') as settings_file:
-                #     lines = "".join(lines)
-                #     settings_file.write(lines)
-                #     settings_file.close()
+                with open(settings_path, 'w') as settings_file:
+                    lines = ''.join(lines)
+                    settings_file.write(lines)
+                    settings_file.close()
                 
-            # else:
-            #     self.stdout.write('>> Components file already initialized.')
-        else: 
-            self.stdout.write('>> Error: Initialization path cannot be empty.')
+            else:
+                self.stdout.write('>> Components file already initialized.')
         if generate:
 
             generated = True
@@ -136,11 +136,11 @@ class Command(BaseCommand):
 
                     extensions = ['css', 'html', 'js', 'py']
 
-                    path =  f'{self.root}/{"/".join(comp_path_array)}/'
-                    module_path = comp_path_array[0]
+                    # path =  f'{self.root}/{"/".join(comp_path_array)}/'
+                    # module_path = comp_path_array[0]
                     components_path = self.root_app / 'components.py'
 
-                    Path(path).mkdir(parents=True, exist_ok=True)
+                    # Path(path).mkdir(parents=True, exist_ok=True)
 
                     templ_replacement = {
                         'name': comp_name,
@@ -149,8 +149,12 @@ class Command(BaseCommand):
 
                     for ext in extensions:
                         
-                        filepath = path + comp_name + '.' + ext
+                        filedir = f'{settings.COMPONENTS_BASE}/{comp_name}/'
+                        filepath = filedir + comp_name + '.' + ext
+                        # print(filepath)
                         templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/{ext}.templ'))
+
+                        Path(filedir).mkdir(parents=True, exist_ok=True)
 
                         if not os.path.exists(filepath):
                             # CREATE FILES
@@ -164,11 +168,12 @@ class Command(BaseCommand):
                     if generated:
                         # ADD COMPONENT TO components.py file
                         with open(components_path, 'a') as components_file:
-                            importline = f'from {str(comp).replace("/", ".")} import {comp_name}\n'
+                            relative_comp_base = str(settings.COMPONENTS_BASE).split(str(settings.BASE_DIR))[1][1:]
+                            importline = f'from {relative_comp_base.replace("/", ".")}.{comp} import {comp_name}\n'
 
                             components_file.write(importline)
                             components_file.close()
 
-                        self.stdout.write(f'>> Component {comp_name} generated in {"/".join(comp_path_array)}/')
+                        self.stdout.write(f'>> Component {comp_name} generated in {relative_comp_base}/{comp}/')
                     else:
                         self.stdout.write(f'>> Component {comp_name} already exists.')
