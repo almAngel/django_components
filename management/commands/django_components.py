@@ -180,7 +180,7 @@ class Command(BaseCommand):
                             
                             filedir = f'{settings.COMPONENTS_BASE}/{comp_name}/'
                             filepath = filedir + comp_name + '.' + ext
-                            # print(filepath)
+
                             templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/{ext}.templ'))
 
                             Path(filedir).mkdir(parents=True, exist_ok=True)
@@ -198,7 +198,7 @@ class Command(BaseCommand):
                             # ADD COMPONENT TO components.py file
                             with open(components_path, 'a') as components_file:
                                 relative_comp_base = str(settings.COMPONENTS_BASE).split(str(settings.BASE_DIR))[1][1:]
-                                importline = f'from {relative_comp_base.replace("/", ".")}.{comp} import {comp_name}\n'
+                                importline = f'\nfrom {relative_comp_base.replace("/", ".")}.{comp} import {comp_name}\n'
 
                                 components_file.write(importline)
                                 components_file.close()

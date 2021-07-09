@@ -6,11 +6,10 @@ from django.template.base import Node, NodeList, TemplateSyntaxError, TokenType
 from django.template.library import parse_bits
 from django.utils.safestring import mark_safe
 
-from django_components.component import ACTIVE_SLOT_CONTEXT_KEY, registry
+from django_components.component import ACTIVE_SLOT_CONTEXT_KEY, registry, local_registry
 from django_components.middleware import CSS_DEPENDENCY_PLACEHOLDER, JS_DEPENDENCY_PLACEHOLDER
 
 register = template.Library()
-
 
 def get_components_from_registry(registry):
     """Returns a list unique components from the registry."""
@@ -32,13 +31,15 @@ def component_dependencies_tag():
         return mark_safe(CSS_DEPENDENCY_PLACEHOLDER + JS_DEPENDENCY_PLACEHOLDER)
     else:
         rendered_dependencies = []
-        for component in get_components_from_registry(registry):
+        # for component in get_components_from_registry(registry):
+        #     rendered_dependencies.append(component.render_dependencies())
+        for component in get_components_from_registry(local_registry):
             rendered_dependencies.append(component.render_dependencies())
 
         return mark_safe("\n".join(rendered_dependencies))
 
 
-@register.simple_tag(name="component_css_dependencies")
+@register.simple_tag(name="component_css")
 def component_css_dependencies_tag():
     """Marks location where CSS link tags should be rendered."""
 
@@ -46,13 +47,15 @@ def component_css_dependencies_tag():
         return mark_safe(CSS_DEPENDENCY_PLACEHOLDER)
     else:
         rendered_dependencies = []
-        for component in get_components_from_registry(registry):
+        # for component in get_components_from_registry(registry):
+        #     rendered_dependencies.append(component.render_css_dependencies())
+        for component in get_components_from_registry(local_registry):
             rendered_dependencies.append(component.render_css_dependencies())
 
         return mark_safe("\n".join(rendered_dependencies))
 
 
-@register.simple_tag(name="component_js_dependencies")
+@register.simple_tag(name="component_js")
 def component_js_dependencies_tag():
     """Marks location where JS script tags should be rendered."""
 
@@ -65,12 +68,34 @@ def component_js_dependencies_tag():
 
         return mark_safe("\n".join(rendered_dependencies))
 
+@register.tag(name='use')
+def do_use(parser, token):
+    bits = token.split_contents()
+    # bits, isolated_context = check_for_isolated_context_keyword(bits)
+    # print(bits, isolated_context)
+    components = parse_use_components(parser, bits, 'use')
+    
+    # LOAD STATICS HERE
+    for comp in components:
+        if type(comp).__name__.lower() not in local_registry.all().keys():
+            local_registry.register(type(comp).__name__.lower(), comp.__class__)
+
+    return HiddenNode(components)
+
+class HiddenNode(Node):
+    def __init__(self, using_components):
+        self.using_components = [type(comp).__name__.lower() for comp in using_components]
+
+    def render(self, context):
+        return f'<!-- Using {", ".join(self.using_components)} -->'
+
 
 @register.tag(name='component')
 def do_component(parser, token):
     bits = token.split_contents()
     bits, isolated_context = check_for_isolated_context_keyword(bits)
     component, context_args, context_kwargs = parse_component_with_args(parser, bits, 'component')
+
     return ComponentNode(component, context_args, context_kwargs, isolated_context=isolated_context)
 
 
@@ -257,10 +282,62 @@ def parse_component_with_args(parser, bits, tag_name):
         )
 
     trimmed_component_name = component_name[1: -1]
-    component_class = registry.get(trimmed_component_name)
+    component_class = local_registry.get(trimmed_component_name)
+        
     component = component_class(trimmed_component_name)
 
     return component, context_args, context_kwargs
+
+def parse_use_components(parser, bits, tag_name):
+    tag_args, tag_kwargs = parse_bits(
+        parser=parser,
+        bits=bits,
+        params=["tag_name", "components"],
+        takes_context=False,
+        name=tag_name,
+        varargs=True,
+        varkw=[],
+        defaults=None,
+        kwonly=[],
+        kwonly_defaults=None,
+    )
+
+    assert tag_name == tag_args[0].token, "Internal error: Expected tag_name to be {}, but it was {}".format(
+        tag_name, tag_args[0].token)
+    if len(tag_args) > 1:  # At least one position arg, so take the first as the component name
+        components_names = [ tag_arg.token for tag_arg in tag_args[1:] ]
+
+        for comp_name in components_names:
+
+            if not is_wrapped_in_quotes(comp_name):
+                raise TemplateSyntaxError(
+                    "Component name '%s' should be in quotes" % comp_name
+                )
+
+        components_names = [ comp.replace('\'', '') for comp in components_names ]
+        # context_args = tag_args[len(components_names):]
+        # context_kwargs = tag_kwargs
+    else:  # No positional args, so look for component name as keyword arg
+        try:
+            # SANITIZING
+            components_names = tag_kwargs.pop('components').token.replace('\'', '') # REMOVE single commas
+            components_names = [ comp.replace(' ', '') \
+                                for comp in components_names.split(',') ] # PUTTING COMMAS AND REMOVING SPACES
+            # context_args = []
+            # context_kwargs = tag_kwargs
+        except IndexError:
+            raise TemplateSyntaxError(
+                "Declaring the '%s' tag imples using 'components' key with multiples args wrapped in commas and separated by a comma" % tag_name
+            )
+
+    components = []
+    for comp_name in components_names:
+        # trimmed_component_name = comp_name[1: -1]
+        component_class = registry.get(comp_name)
+        components.append(component_class(comp_name))
+
+    return components#, context_args, context_kwargs
+
 
 
 def safe_resolve(context_item, context):

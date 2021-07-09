@@ -124,6 +124,7 @@ class Component(metaclass=SimplifiedInterfaceMediaDefiningClass):
 
 # This variable represents the global component registry
 registry = ComponentRegistry()
+local_registry = ComponentRegistry()
 
 
 def register(name):
