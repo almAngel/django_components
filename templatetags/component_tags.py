@@ -9,6 +9,10 @@ from django.utils.safestring import mark_safe
 from django_components.component import ACTIVE_SLOT_CONTEXT_KEY, registry, local_registry
 from django_components.middleware import CSS_DEPENDENCY_PLACEHOLDER, JS_DEPENDENCY_PLACEHOLDER
 
+from ..nodes.component_import_node import ComponentImportNode
+from ..nodes.component_node import ComponentNode
+from ..nodes.slot_node import SlotNode
+
 register = template.Library()
 
 def get_components_from_registry(registry):
@@ -23,20 +27,18 @@ def get_components_from_registry(registry):
     return components
 
 
-@register.simple_tag(name="component_dependencies")
-def component_dependencies_tag():
-    """Marks location where CSS link and JS script tags should be rendered."""
+# @register.simple_tag(name="component_dependencies")
+# def component_dependencies_tag():
+#     """Marks location where CSS link and JS script tags should be rendered."""
 
-    if is_dependency_middleware_active():
-        return mark_safe(CSS_DEPENDENCY_PLACEHOLDER + JS_DEPENDENCY_PLACEHOLDER)
-    else:
-        rendered_dependencies = []
-        # for component in get_components_from_registry(registry):
-        #     rendered_dependencies.append(component.render_dependencies())
-        for component in get_components_from_registry(local_registry):
-            rendered_dependencies.append(component.render_dependencies())
+#     if is_dependency_middleware_active():
+#         return mark_safe(CSS_DEPENDENCY_PLACEHOLDER + JS_DEPENDENCY_PLACEHOLDER)
+#     else:
+#         rendered_dependencies = []
+#         for component in get_components_from_registry(local_registry):
+#             rendered_dependencies.append(component.render_dependencies())
 
-        return mark_safe("\n".join(rendered_dependencies))
+#         return mark_safe("\n".join(rendered_dependencies))
 
 
 @register.simple_tag(name="component_css")
@@ -47,8 +49,6 @@ def component_css_dependencies_tag():
         return mark_safe(CSS_DEPENDENCY_PLACEHOLDER)
     else:
         rendered_dependencies = []
-        # for component in get_components_from_registry(registry):
-        #     rendered_dependencies.append(component.render_css_dependencies())
         for component in get_components_from_registry(local_registry):
             rendered_dependencies.append(component.render_css_dependencies())
 
@@ -63,10 +63,11 @@ def component_js_dependencies_tag():
         return mark_safe(JS_DEPENDENCY_PLACEHOLDER)
     else:
         rendered_dependencies = []
-        for component in get_components_from_registry(registry):
+        for component in get_components_from_registry(local_registry):
             rendered_dependencies.append(component.render_js_dependencies())
 
         return mark_safe("\n".join(rendered_dependencies))
+
 
 @register.tag(name='use')
 def do_use(parser, token):
@@ -80,14 +81,10 @@ def do_use(parser, token):
         if type(comp).__name__.lower() not in local_registry.all().keys():
             local_registry.register(type(comp).__name__.lower(), comp.__class__)
 
-    return HiddenNode(components)
-
-class HiddenNode(Node):
-    def __init__(self, using_components):
-        self.using_components = [type(comp).__name__.lower() for comp in using_components]
-
-    def render(self, context):
-        return f'<!-- Using {", ".join(self.using_components)} -->'
+    return ComponentImportNode(
+        f'<!-- Using {", ".join([type(comp).__name__.lower() for comp in components])} -->',
+        components, 
+    )
 
 
 @register.tag(name='component')
@@ -97,41 +94,6 @@ def do_component(parser, token):
     component, context_args, context_kwargs = parse_component_with_args(parser, bits, 'component')
 
     return ComponentNode(component, context_args, context_kwargs, isolated_context=isolated_context)
-
-
-class SlotNode(Node):
-    def __init__(self, name, nodelist, component=None):
-        self.name, self.nodelist, self.component = name, nodelist, component
-        self.component = None
-        self.parent_component = None
-        self.context = None
-
-    def __repr__(self):
-        return "<Slot Node: %s. Contents: %r>" % (self.name, self.nodelist)
-
-    def render(self, context):
-        # Thread safety: storing the context as a property of the cloned SlotNode without using
-        # the render_context facility should be thread-safe, since each cloned_node
-        # is only used for a single render.
-        cloned_node = SlotNode(self.name, self.nodelist, self.component)
-        cloned_node.parent_component = self.parent_component
-        cloned_node.context = context
-
-        with context.update({'slot': cloned_node}):
-            return self.get_nodelist(context).render(context)
-
-    def get_nodelist(self, context):
-        if ACTIVE_SLOT_CONTEXT_KEY not in context:
-            raise TemplateSyntaxError(f'Attempted to render SlotNode {self.name} outside of a parent Component or '
-                                      'without access to context provided by its parent Component. This will not'
-                                      'work properly.')
-
-        overriding_nodelist = context[ACTIVE_SLOT_CONTEXT_KEY].get(self.name, None)
-        return overriding_nodelist if overriding_nodelist is not None else self.nodelist
-
-    def super(self):
-        """Render default slot content."""
-        return mark_safe(self.nodelist.render(self.context))
 
 
 @register.tag("slot")
@@ -145,47 +107,6 @@ def do_slot(parser, token, component=None):
     parser.delete_first_token()
 
     return SlotNode(slot_name, nodelist, component=component)
-
-
-class ComponentNode(Node):
-    class InvalidSlot:
-        def super(self):
-            raise TemplateSyntaxError('slot.super may only be called within a {% slot %}/{% endslot %} block.')
-
-    def __init__(self, component, context_args, context_kwargs, slots=None, isolated_context=False):
-        self.context_args = context_args or []
-        self.context_kwargs = context_kwargs or {}
-        self.component, self.isolated_context = component, isolated_context
-
-        # Group slot notes by name and concatenate their nodelists
-        self.component.slots = defaultdict(NodeList)
-        for slot in slots or []:
-            self.component.slots[slot.name].extend(slot.nodelist)
-        self.should_render_dependencies = is_dependency_middleware_active()
-
-    def __repr__(self):
-        return "<Component Node: %s. Contents: %r>" % (self.component,
-                                                       getattr(self.component.instance_template, 'nodelist', None))
-
-    def render(self, context):
-        self.component.outer_context = context.flatten()
-
-        # Resolve FilterExpressions and Variables that were passed as args to the component, then call component's
-        # context method to get values to insert into the context
-        resolved_context_args = [safe_resolve(arg, context) for arg in self.context_args]
-        resolved_context_kwargs = {key: safe_resolve(kwarg, context) for key, kwarg in self.context_kwargs.items()}
-        component_context = self.component.context(*resolved_context_args, **resolved_context_kwargs)
-
-        # Create a fresh context if requested
-        if self.isolated_context:
-            context = context.new()
-
-        with context.update(component_context):
-            rendered_component = self.component.render(context)
-            if self.should_render_dependencies:
-                return f'<!-- _RENDERED {self.component._component_name} -->' + rendered_component
-            else:
-                return rendered_component
 
 
 @register.tag("component_block")
@@ -337,7 +258,6 @@ def parse_use_components(parser, bits, tag_name):
         components.append(component_class(comp_name))
 
     return components#, context_args, context_kwargs
-
 
 
 def safe_resolve(context_item, context):
