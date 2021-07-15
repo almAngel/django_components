@@ -93,6 +93,8 @@ def do_component(parser, token):
     bits, isolated_context = check_for_isolated_context_keyword(bits)
     component, context_args, context_kwargs = parse_component_with_args(parser, bits, 'component')
 
+    print(component)
+
     return ComponentNode(component, context_args, context_kwargs, isolated_context=isolated_context)
 
 
@@ -181,8 +183,7 @@ def parse_component_with_args(parser, bits, tag_name):
         kwonly_defaults=None,
     )
 
-    assert tag_name == tag_args[0].token, "Internal error: Expected tag_name to be {}, but it was {}".format(
-        tag_name, tag_args[0].token)
+    assert tag_name == tag_args[0].token, "Internal error: Expected tag_name to be {}, but it was {}".format(tag_name, tag_args[0].token)
     if len(tag_args) > 1:  # At least one position arg, so take the first as the component name
         component_name = tag_args[1].token
         context_args = tag_args[2:]

@@ -1,6 +1,8 @@
 from collections import defaultdict
+from django_components.component import Component
 from django.template.base import Node, NodeList, TemplateSyntaxError, TokenType
 from django.conf import settings
+import re
 
 class ComponentNode(Node):
     class InvalidSlot:
@@ -8,9 +10,10 @@ class ComponentNode(Node):
             raise TemplateSyntaxError('slot.super may only be called within a {% slot %}/{% endslot %} block.')
 
     def __init__(self, component, context_args, context_kwargs, slots=None, isolated_context=False):
-        self.context_args = context_args or []
-        self.context_kwargs = context_kwargs or {}
-        self.component, self.isolated_context = component, isolated_context
+        self.component: Component = component
+        self.context_args: list = context_args or []
+        self.context_kwargs: dict = context_kwargs or {}
+        self.isolated_context: bool = isolated_context
 
         # Group slot notes by name and concatenate their nodelists
         self.component.slots = defaultdict(NodeList)
@@ -19,8 +22,7 @@ class ComponentNode(Node):
         self.should_render_dependencies = self.is_dependency_middleware_active()
 
     def __repr__(self):
-        return "<Component Node: %s. Contents: %r>" % (self.component,
-                                                       getattr(self.component.instance_template, 'nodelist', None))
+        return "<Component Node: %s. Contents: %r>" % (self.component, getattr(self.component.instance_template, 'nodelist', None))
 
     def render(self, context):
         self.component.outer_context = context.flatten()
@@ -29,6 +31,22 @@ class ComponentNode(Node):
         # context method to get values to insert into the context
         resolved_context_args = [self.safe_resolve(arg, context) for arg in self.context_args]
         resolved_context_kwargs = {key: self.safe_resolve(kwarg, context) for key, kwarg in self.context_kwargs.items()}
+
+        # TYPES | author: almAngel
+
+        # IF TYPE IS LIST
+        if list(resolved_context_kwargs.values()):
+            kwarg_value = list(resolved_context_kwargs.values())[0]
+            
+            if re.match(r'^([\$\[])+(.\,*){2,}([\]])$', kwarg_value):
+                sanitized_value = re.sub(r'[^\w\,]', '', kwarg_value)
+                resolved_context_kwargs.update({
+                    list(resolved_context_kwargs.keys())[0]: sanitized_value.split(',')
+                    # list(resolved_context_kwargs.keys())[0]: sanitized_value
+                })
+
+        # -------------------------
+
         component_context = self.component.context(*resolved_context_args, **resolved_context_kwargs)
 
         # Create a fresh context if requested
