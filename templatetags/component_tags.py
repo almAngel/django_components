@@ -93,8 +93,6 @@ def do_component(parser, token):
     bits, isolated_context = check_for_isolated_context_keyword(bits)
     component, context_args, context_kwargs = parse_component_with_args(parser, bits, 'component')
 
-    print(component)
-
     return ComponentNode(component, context_args, context_kwargs, isolated_context=isolated_context)
 
 
@@ -203,8 +201,10 @@ def parse_component_with_args(parser, bits, tag_name):
             "Component name '%s' should be in quotes" % component_name
         )
 
-    trimmed_component_name = component_name[1: -1]
+    trimmed_component_name = component_name.translate(str.maketrans('', '', '\'')).translate(str.maketrans('', '', '_'))
     component_class = local_registry.get(trimmed_component_name)
+
+    print(component_class)
         
     component = component_class(trimmed_component_name)
 
