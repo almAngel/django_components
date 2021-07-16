@@ -10,7 +10,7 @@ class Command(BaseCommand):
 
     root = settings.BASE_DIR
     appname = str(settings.BASE_DIR).split('/')[-1]
-    root_app = root / appname
+    root_app = f'{root}/{appname}'
     components_base = ''
 
     def add_arguments(self, parser):
@@ -25,7 +25,7 @@ class Command(BaseCommand):
 
         if initialize:
 
-            componentsfile_path = self.root_app / 'components.py'
+            componentsfile_path = f'{self.root_app}/components.py'
             settings_path = str(self.root_app / 'settings.py')
             self.components_base = initialize
             self.components_parent = self.components_base.split('/')[0]
@@ -167,7 +167,7 @@ class Command(BaseCommand):
 
                         # path =  f'{self.root}/{"/".join(comp_path_array)}/'
                         # module_path = comp_path_array[0]
-                        components_path = self.root_app / 'components.py'
+                        components_path = f'{self.root_app}/components.py'
 
                         # Path(path).mkdir(parents=True, exist_ok=True)
 

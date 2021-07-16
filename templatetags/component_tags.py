@@ -203,8 +203,6 @@ def parse_component_with_args(parser, bits, tag_name):
 
     trimmed_component_name = component_name.translate(str.maketrans('', '', '\'')).translate(str.maketrans('', '', '_'))
     component_class = local_registry.get(trimmed_component_name)
-
-    print(component_class)
         
     component = component_class(trimmed_component_name)
 
