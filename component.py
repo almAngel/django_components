@@ -6,6 +6,7 @@ from django.forms.widgets import MediaDefiningClass
 from django.template.base import Node, TokenType
 from django.template.loader import get_template
 from django.utils.safestring import mark_safe
+from django.conf import settings
 
 # Allow "component.AlreadyRegistered" instead of having to import these everywhere
 from django_components.component_registry import AlreadyRegistered, ComponentRegistry, NotRegistered  # noqa

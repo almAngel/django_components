@@ -1,3 +1,4 @@
+from django.conf import settings
 from django_components import component
 
 @component.register('$name')
@@ -12,5 +13,5 @@ class $class_name(component.Component):
         return '$name.html'
 
     class Media:
-        css = '$name.css'
-        js = '$name.js'
+        css = '$name.css' if settings.DEBUG is True else f'../../{settings.STATIC_ROOT}/components.css'
+        js = '$name.js' if settings.DEBUG is True else f'../../{settings.STATIC_ROOT}/components.js'

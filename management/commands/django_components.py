@@ -2,8 +2,11 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 from pathlib import Path
 import os, sys
-import inspect, importlib as implib
 from string import Template
+
+from ...slimit.mangler import mangle
+from ...slimit.minifier import minify
+from ...csscompressor import compress
 
 class Command(BaseCommand):
     help = '>> Django Components manager. This tool is used to maintain django_components projects.'
@@ -17,11 +20,13 @@ class Command(BaseCommand):
         parser.add_argument('-i', '--initialize', type=str, help='Set up Django Components')
         parser.add_argument('-g', '--generate', action='store_true', help='Generate elements')
         parser.add_argument('-c', '--component', nargs='+', type=str, help='Select component as element to operate with')
+        parser.add_argument('-p', '--compile', type=str, help='Compile components statics (JS/CSS)')
 
     def handle(self, *args, **kwargs):
         initialize = kwargs['initialize']
         generate = kwargs['generate']
         components = kwargs['component']
+        compile = kwargs['compile']
 
         if initialize:
 
@@ -208,3 +213,53 @@ class Command(BaseCommand):
                             self.stdout.write(f'>> Component {comp_name} already exists.')
             else:
                 self.stdout.write(f'>> Plugin settings not initialized.')
+        
+        static_path = ''
+        if compile:
+
+            extensions = [ 'css', 'js' ]
+
+            if compile != '@default':
+                
+                static_path = f'{self.root}/{compile}'
+            else:
+                static_path = f'{self.root}/{settings.STATIC_ROOT}'
+            
+            if 'COMPONENTS_BASE' in sys.modules[f'{self.appname}.settings'].__dir__():
+
+                if os.path.exists(static_path):
+                    self.stdout.write(f'>> Creating static files at {settings.STATIC_ROOT}/ ...')
+                    # Path(f'{self.root}/tmp').mkdir(parents=True, exist_ok=True)
+
+                    for ext in extensions:
+
+                        self.stdout.write('\n\n')
+                        self.stdout.write(f'>> ------ Reading .{ext} files... ------')
+
+                        if os.path.isfile(f'{self.root}/{settings.STATIC_ROOT}/components.{ext}'):
+                            self.stdout.write(f'>> Found existing components.{ext} file at {settings.STATIC_ROOT}/. Overwriting ...')
+                            os.remove(f'{self.root}/{settings.STATIC_ROOT}/components.{ext}')
+                            self.stdout.write(f'>> Files deleted succesfully.')
+                        else:
+                            self.stdout.write(f'>> No previous components.{ext} file found at {settings.STATIC_ROOT}/. Creating ...')
+
+                        self.stdout.write(f'>> Reading component directories inside {settings.COMPONENTS_BASE}/')
+                        for dir in settings.COMPONENTS_DIRS:
+                                with open(f'{settings.COMPONENTS_BASE}/{dir}/{dir}.{ext}', 'r') as in_file:
+                                        
+                                        with open(f'{self.root}/{settings.STATIC_ROOT}/components.{ext}', 'a') as out_file:
+
+                                            if ext == 'js':
+                                                # ARROW FUNCTIONS ARE NOT ALLOWED
+                                                content = minify(in_file.read().replace('() =>', 'function()'), mangle=True, mangle_toplevel=True)
+                                                out_file.write(content)
+                                            elif ext == 'css':
+                                                content = compress(in_file.read())
+                                                out_file.write(content)
+                                
+                        self.stdout.write(f'>> Compiling and minification process complete.')
+                        
+                else:
+                    self.stdout.write(f'>> The specified route for static files does not exist. Aborting...')
+            else:
+                self.stdout.write(f'>> Django Components has not been initialized. Aborting...')
