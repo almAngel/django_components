@@ -244,10 +244,11 @@ class Command(BaseCommand):
                             self.stdout.write(f'>> No previous components.{ext} file found at {settings.STATIC_ROOT}/. Creating ...')
 
                         self.stdout.write(f'>> Reading component directories inside {settings.COMPONENTS_BASE}/')
+                        
                         for dir in settings.COMPONENTS_DIRS:
                                 with open(f'{settings.COMPONENTS_BASE}/{dir}/{dir}.{ext}', 'r') as in_file:
                                         
-                                        with open(f'{self.root}/{settings.STATIC_ROOT}/components.{ext}', 'a') as out_file:
+                                        with open(f'{static_path}/components.{ext}', 'a') as out_file:
 
                                             if ext == 'js':
                                                 # ARROW FUNCTIONS ARE NOT ALLOWED

@@ -24,13 +24,13 @@
 
 __author__ = 'Ruslan Spivak <ruslan.spivak@gmail.com>'
 
-import ply.yacc
+from django_components.ply.yacc import yacc
 
-from ..slimit import ast
-from ..slimit.lexer import Lexer
+from django_components.slimit import ast
+from django_components.slimit.lexer import Lexer
 
 try:
-    from ..slimit import lextab, yacctab
+    from django_components.slimit import lextab, yacctab
 except ImportError:
     lextab, yacctab = 'lextab', 'yacctab'
 
@@ -56,7 +56,7 @@ class Parser(object):
         self.lexer.build(optimize=lex_optimize, lextab=lextab)
         self.tokens = self.lexer.tokens
 
-        self.parser = ply.yacc.yacc(
+        self.parser = yacc(
             module=self, optimize=yacc_optimize,
             debug=yacc_debug, tabmodule=yacctab, start='program')
 

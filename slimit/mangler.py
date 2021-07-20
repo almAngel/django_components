@@ -24,13 +24,13 @@
 
 __author__ = 'Ruslan Spivak <ruslan.spivak@gmail.com>'
 
-from ..slimit.scope import SymbolTable
-from ..slimit.visitors.scopevisitor import (
+from django_components.slimit.scope import SymbolTable
+from django_components.slimit.visitors.scopevisitor import (
     ScopeTreeVisitor,
     fill_scope_references,
     mangle_scope_tree,
     NameManglerVisitor,
-    )
+)
 
 
 def mangle(tree, toplevel=False):
