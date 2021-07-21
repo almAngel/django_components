@@ -49,8 +49,13 @@ def component_css_dependencies_tag():
         return mark_safe(CSS_DEPENDENCY_PLACEHOLDER)
     else:
         rendered_dependencies = []
-        for component in get_components_from_registry(local_registry):
-            rendered_dependencies.append(component.render_css_dependencies())
+        if settings.DEBUG is True:
+            for component in get_components_from_registry(local_registry):
+                rendered_dependencies.append(component.render_css_dependencies())
+        else:
+            rendered_dependencies.append(
+                get_components_from_registry(local_registry)[0].render_css_dependencies()
+            )
 
         return mark_safe("\n".join(rendered_dependencies))
 
@@ -63,8 +68,13 @@ def component_js_dependencies_tag():
         return mark_safe(JS_DEPENDENCY_PLACEHOLDER)
     else:
         rendered_dependencies = []
-        for component in get_components_from_registry(local_registry):
-            rendered_dependencies.append(component.render_js_dependencies())
+        if settings.DEBUG is True:
+            for component in get_components_from_registry(local_registry):
+                rendered_dependencies.append(component.render_js_dependencies())
+        else:
+            rendered_dependencies.append(
+                get_components_from_registry(local_registry)[0].render_js_dependencies()
+            )
 
         return mark_safe("\n".join(rendered_dependencies))
 

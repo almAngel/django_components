@@ -31,7 +31,7 @@ try:
 except ImportError:
     from odict import odict as OrderedDict
 
-from ..slimit.lexer import Lexer
+from django_components.slimit.lexer import Lexer
 
 
 ID_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'

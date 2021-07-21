@@ -24,4 +24,4 @@
 
 __author__ = 'Ruslan Spivak <ruslan.spivak@gmail.com>'
 
-from ..slimit.minifier import minify  # noqa: F401
+from django_components.slimit.minifier import minify  # noqa: F401

@@ -28,9 +28,9 @@ import sys
 import optparse
 import textwrap
 
-from ..slimit import mangler
-from ..slimit.parser import Parser
-from ..slimit.visitors.minvisitor import ECMAMinifier
+from django_components.slimit import mangler
+from django_components.slimit.parser import Parser
+from django_components.slimit.visitors.minvisitor import ECMAMinifier
 
 
 def minify(text, mangle=False, mangle_toplevel=False):

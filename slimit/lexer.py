@@ -25,9 +25,9 @@ from  __future__ import print_function
 
 __author__ = 'Ruslan Spivak <ruslan.spivak@gmail.com>'
 
-import ply.lex
+from django_components.ply.lex import lex, TOKEN, LexToken
 
-from ..slimit.unicode_chars import (
+from django_components.slimit.unicode_chars import (
     LETTER,
     DIGIT,
     COMBINING_MARK,
@@ -100,7 +100,7 @@ class Lexer(object):
 
     def build(self, **kwargs):
         """Build the lexer."""
-        self.lexer = ply.lex.lex(object=self, **kwargs)
+        self.lexer = lex(object=self, **kwargs)
 
     def input(self, text):
         self.lexer.input(text)
@@ -178,7 +178,7 @@ class Lexer(object):
         return self.cur_token
 
     def _create_semi_token(self, orig_token):
-        token = ply.lex.LexToken()
+        token = LexToken()
         token.type = 'SEMI'
         token.value = ';'
         if orig_token is not None:
@@ -405,7 +405,7 @@ class Lexer(object):
     )
     """  # "
 
-    @ply.lex.TOKEN(string)
+    @TOKEN(string)
     def t_STRING(self, token):
         # remove escape + new line sequence used for strings
         # written across multiple lines of code
@@ -421,16 +421,16 @@ class Lexer(object):
     identifier = (identifier_start + identifier_part).replace(']|[', '')
 
     getprop = r'get' + r'(?=\s' + identifier + r')'
-    @ply.lex.TOKEN(getprop)
+    @TOKEN(getprop)
     def t_GETPROP(self, token):
         return token
 
     setprop = r'set' + r'(?=\s' + identifier + r')'
-    @ply.lex.TOKEN(setprop)
+    @TOKEN(setprop)
     def t_SETPROP(self, token):
         return token
 
-    @ply.lex.TOKEN(identifier)
+    @TOKEN(identifier)
     def t_ID(self, token):
         token.type = self.keywords_dict.get(token.value, 'ID')
         return token
