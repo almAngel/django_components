@@ -1,8 +1,11 @@
+from typing import Callable
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from pathlib import Path
 import os, sys
 from string import Template
+from importlib import reload
+from copy import deepcopy
 
 from ...slimit.mangler import mangle
 from ...slimit.minifier import minify
@@ -15,6 +18,25 @@ class Command(BaseCommand):
     appname = str(settings.BASE_DIR).split('/')[-1]
     root_app = f'{root}/{appname}'
     components_base = ''
+
+    def save(self, filepath, lines, callback: Callable = None):
+        with open(filepath, 'w') as file:
+            lines = ''.join(lines)
+            file.write(lines)
+            file.close
+        
+        if callback:
+            callback()
+
+    def cancel(self, filepath, backup):
+        self.save(
+            filepath=filepath, 
+            lines=backup, 
+            callback=lambda: (
+                os.remove(f'{self.root_app}/components.py'),
+                self.stdout.write('>> Operation aborted.')
+            )
+        )
 
     def add_arguments(self, parser):
         parser.add_argument('-i', '--initialize', type=str, help='Set up Django Components')
@@ -31,125 +53,182 @@ class Command(BaseCommand):
         if initialize:
 
             componentsfile_path = f'{self.root_app}/components.py'
-            settings_path = str(self.root_app / 'settings.py')
+            settings_path = f'{self.root_app}/settings.py'
             self.components_base = initialize
             self.components_parent = self.components_base.split('/')[0]
 
+            current_step = 0
+            steps_description = [
+                'creating component.py file', 
+                'importing os module',
+                'adding component constants',
+                'adding component directories into templates',
+                'adding tags as builtin',
+                'adding component directories into static',
+            ]
+            steps = len(steps_description)
+
             if not os.path.exists(componentsfile_path):
-                self.stdout.write('>> Creating component.py file and adding it to your project...')
+                # STARTING
+                # self.stdout.write('>> Creating component.py file and adding it to your project...')
+                self.stdout.write('>> Django components plugin initialization started...')
 
-                # ADD IMPORT OS
-                lines = []
-                with open(settings_path, 'r+') as settings_file:
-                    lines = settings_file.readlines()
-                    for i, l in enumerate(lines):
-                        if 'import' in l:
-                            if 'os' not in sys.modules[f'{self.appname}.settings'].__dir__():
-                                lines.insert(i + 1, 'import os\n')
-                                break
-                    settings_file.close()
-                        
-                with open(settings_path, 'w') as settings_file:
-                    lines = "".join(lines)
-                    settings_file.write(lines)
-                    settings_file.close()
-                
-                Path(f'{settings.BASE_DIR}/{self.components_base}').mkdir(parents=True, exist_ok=True)
+                lines, backup = [], []
 
-                # ADD COMPONENTS BLOCK
-                lines = []
-                with open(componentsfile_path, 'w'), \
-                    open(settings_path, 'r+') as settings_file:
+                with open(settings_path, 'r+') as settings_file, \
+                    open(componentsfile_path, 'w'):
+
+                    backup = settings_file.readlines()
+
+                    lines = deepcopy(backup)
+
+                    self.stdout.write('\n')
+
+                    # CHECK IF component.py HAS BEEN CREATED
+                    if os.path.isfile(componentsfile_path):
+                        self.stdout.write(f'>> File components.py created successfully. 4%')
+                        current_step += 1
+                    else: 
+                        self.stdout.write(f'>> Error on step {current_step} \'{steps_description[current_step]}\'.')
+                        exit()
                     
-                    if 'COMPONENTS' not in sys.modules[f'{self.appname}.settings'].__dir__():
-                        lines = settings_file.readlines()
+                    self.stdout.write('\n')
 
-                        for i, l in enumerate(lines):
-
-                            if 'BASE_DIR' in l:
-                                lines[i + 2] = (
-                                    '\n# DJANGO_COMPONENTS PLUGIN\n'
-                                    'COMPONENTS = {\n'
-                                        '\t\'libraries\': [\n'
-                                            f'\t\t\'{self.appname}.components\'\n'
-                                        '\t]\n'
-                                    '}\n'
-                                    'COMPONENTS_BASE = ' + f'f\'{{BASE_DIR}}/{self.components_base}\''
-                                    '\nCOMPONENTS_DIRS = [ dir for dir in os.listdir(COMPONENTS_BASE) if os.path.isdir(os.path.join(COMPONENTS_BASE, dir)) ]\n\n'
-                                )
-                                break
-                    settings_file.close()
-                with open(settings_path, 'w') as settings_file:
-                    lines = ''.join(lines)
-                    settings_file.write(lines)
-                    settings_file.close()
-                
-                # ADD TEMPLATE DIRS
-                lines = []
-                with open(settings_path, 'r+') as settings_file: 
-                    lines = settings_file.readlines()
-
+                    ## STEP 1
                     for i, l in enumerate(lines):
-                        if 'APP_DIRS' in l:
-                            lines[i-1] = lines[i-1].replace('\n', '')
-                            exploded = lines[i-1].split(',')
-                            exploded[1] += f' + [os.path.join(BASE_DIR, \'{self.components_base}/\') + comp for comp in COMPONENTS_DIRS if comp != \'__pycache__\'],\n'
-                            lines[i-1] = ''.join(exploded)
-                            break
+
+                        # IMPORTING 'os' MODULE
+                        if current_step == 1:
+                            if 'import' in l:
+                                if 'os' not in sys.modules[f'{self.appname}.settings'].__dir__():
+                                    lines.insert(i + 1, 'import os\n')
+                                    break
+                                else:
+                                    self.stdout.write(f'>> (!) Module \'os\' detected.')
+                                    break
                         
-                    settings_file.close()
+                    self.save(filepath=settings_path, lines=lines)
+                    reload(sys.modules[f'{self.appname}.settings'])
+                
+                    # CHECK IF IMPORTED
+                    if 'os' in sys.modules[f'{self.appname}.settings'].__dir__():
+                        self.stdout.write(f'>> Module \'os\' imported correctly. {int((100*current_step)/steps)}%')
+                        current_step += 1
+                        Path(f'{settings.BASE_DIR}/{self.components_base}').mkdir(parents=True, exist_ok=True)
+                    else:
+                        self.stdout.write(f'>> Error on step {current_step} \'{steps_description[current_step]}\'.')
+                        self.cancel(filepath=settings_path, backup=backup)
+                        exit()
+                    
+                    self.stdout.write('\n')
 
-                with open(settings_path, 'w') as settings_file:
-                    lines = ''.join(lines)
-                    settings_file.write(lines)
-                    settings_file.close()
+                    self.stdout.write('>> Adding required configuration...')
 
-                # ADD BUILTIN COMPONENT_TAGS
-                lines = []
-                with open(settings_path, 'r+') as settings_file: 
-                    lines = settings_file.readlines()
-
+                    ## STEP 2
                     for i, l in enumerate(lines):
+                        # WRITING COMPONENT SETTINGS
+                        if current_step == 2:
+                            if 'COMPONENTS' not in sys.modules[f'{self.appname}.settings'].__dir__():
+                                if 'BASE_DIR' in l:
+                                    lines.insert(
+                                        i + 2,
+                                        '\n# DJANGO_COMPONENTS PLUGIN\n'
+                                        'COMPONENTS = {\n'
+                                            '\t\'libraries\': [\n'
+                                                f'\t\t\'{self.appname}.components\'\n'
+                                            '\t]\n'
+                                        '}\n'
+                                        'COMPONENTS_BASE = ' + f'f\'{{BASE_DIR}}/{self.components_base}\''
+                                        '\nCOMPONENTS_DIRS = [ dir for dir in os.listdir(COMPONENTS_BASE) if os.path.isdir(os.path.join(COMPONENTS_BASE, dir)) ]\n'
+                                    )
+                                    self.stdout.write(f'>>    - Added \'COMPONENT\' constant to settings. {int((100*current_step)/steps)}%')
+                                    break
+                            else:
+                                self.stdout.write(f'>> (!) Constant \'COMPONENTS\' detected.')
+                                break
+
+                    self.save(filepath=settings_path, lines=lines)
+                    reload(sys.modules[f'{self.appname}.settings'])
+                
+                    # CHECK IF IMPORTED
+                    if 'COMPONENTS' in sys.modules[f'{self.appname}.settings'].__dir__():
+                        current_step += 1
+                    else:
+                        self.stdout.write(f'>> Error on step {current_step} \'{steps_description[current_step]}\'.')
+                        self.cancel(filepath=settings_path, backup=backup)
+                        exit()
+
+                    ## STEP 3
+                    string = f'[os.path.join(BASE_DIR, \'{self.components_base}/\') + comp for comp in COMPONENTS_DIRS if comp != \'__pycache__\']'
+                    for i, l in enumerate(lines):
+                        # ADDING TO TEMPLATES
+                        if current_step == 3:
+                            if 'APP_DIRS' in l:
+                                lines[i-1] = lines[i-1].replace('\n', '')
+                                exploded = lines[i-1].split(',')
+                                exploded[1] += f' + {string},\n'
+                                lines[i-1] = ''.join(exploded)
+                            
+                                current_step += 1
+
+                    self.save(filepath=settings_path, lines=lines)
+                    # reload(sys.modules[f'{self.appname}.settings'])
+
+                    if current_step == 4:
+                        self.stdout.write(f'>>    - Added component directories to templates. {int((100*current_step)/steps)}%')
+                    else:
+                        self.stdout.write(f'>> Error on step {current_step} \'{steps_description[current_step]}\'.')
+                        self.cancel(filepath=settings_path, backup=backup)
+                        exit()
+
+                    ## STEP 4
+                    for i, l in enumerate(lines):
+                        # ADDING BUILTINS
                         if 'context_processors' in l and 'OPTIONS' in lines[i-1]:
                             lines.insert(i, (
                                 '\t\t\t\'builtins\': [\n'
                                     '\t\t\t\t\'django_components.templatetags.component_tags\',\n'
                                 '\t\t\t],\n'
                             ))
-                            break
-                    settings_file.close()
+                            current_step += 1
 
-                with open(settings_path, 'w') as settings_file:
-                    lines = ''.join(lines)
-                    settings_file.write(lines)
-                    settings_file.close()
+                    self.save(filepath=settings_path, lines=lines)
 
-                # ADD TO STATIC
-                lines = []
-                if 'STATICFILES_DIRS' not in sys.modules[f'{self.appname}.settings'].__dir__():
-                    with open(settings_path, 'a') as settings_file:
-                        settings_file.write(
-                            (
-                                f'STATICFILES_DIRS = [os.path.join(BASE_DIR, \'{self.components_base}/\') + comp for comp in COMPONENTS_DIRS if comp != \'__pycache__\'] + \\\n'
-                                '[] # PLACE YOUR OWN DIRECTORIES HERE' 
+                    if current_step == 5:
+                        self.stdout.write(f'>>    - Added tags to context_processors. {int((100*current_step)/steps)}%')
+                    else:
+                        self.stdout.write(f'>> Error on step {current_step} \'{steps_description[current_step]}\'.')
+                        self.cancel(filepath=settings_path, backup=backup)
+                        exit()
+
+                    ## STEP 5
+                    for i, l in enumerate(lines):
+                        # ADDING TO STATIC
+                        if 'STATICFILES_DIRS' not in sys.modules[f'{self.appname}.settings'].__dir__():
+                            settings_file.write(
+                                (
+                                    f'STATICFILES_DIRS = {string} + \\\n'
+                                    '[] # PLACE YOUR OWN DIRECTORIES HERE' 
+                                )
                             )
-                        )
-                        settings_file.close()   
-                else:
-                    with open(settings_path, 'r+') as settings_file:
-                        lines = settings_file.readlines()
-                        for i, l in enumerate(lines):
+                        else:
                             if 'STATICFILES_DIRS' in l:
                                 lines[i] = lines[i].replace(
                                     'STATICFILES_DIRS =', 
-                                    'STATICFILES_DIRS = ' + f'[os.path.join(BASE_DIR, \'{self.components_base}/\') + comp for comp in COMPONENTS_DIRS if comp != \'__pycache__\'] + \\\n'
+                                    'STATICFILES_DIRS = ' + f'{string} + \\\n'
                                 )
-                                break
 
-                    with open(settings_path, 'w') as settings_file:
-                        lines = ''.join(lines)
-                        settings_file.write(lines)
-                        settings_file.close()
+                    self.save(filepath=settings_path, lines=lines)
+
+                    if current_step == len(steps_description)-1:
+                        current_step += 1
+                        self.stdout.write(f'>>    - Added component directories to static. {int((100*current_step)/steps)}%')
+                    else:
+                        self.stdout.write(f'>> Error on step {current_step} \'{steps_description[current_step]}\'.')
+                        self.cancel(filepath=settings_path, backup=backup)
+                        exit()
+                
+                settings_file.close()
                 
             else:
                 self.stdout.write('>> Components file already initialized.')
