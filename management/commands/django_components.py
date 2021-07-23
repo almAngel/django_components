@@ -41,12 +41,15 @@ class Command(BaseCommand):
         parser.add_argument('-i', '--initialize', type=str, help='Set up Django Components')
         parser.add_argument('-g', '--generate', action='store_true', help='Generate elements')
         parser.add_argument('-c', '--component', nargs='+', type=str, help='Select component as element to operate with')
+        parser.add_argument('--include-sass', action='store_true', help='Include sass file when creating a component')
         parser.add_argument('-p', '--compile', type=str, help='Compile components statics (JS/CSS)')
+
 
     def handle(self, *args, **kwargs):
         initialize = kwargs['initialize']
         generate = kwargs['generate']
         components = kwargs['component']
+        include_sass = kwargs['include_sass']
         compile = kwargs['compile']
 
         if initialize:
@@ -248,6 +251,9 @@ class Command(BaseCommand):
 
                         extensions = ['css', 'html', 'js', 'py']
 
+                        if include_sass:
+                            extensions.append('scss')
+
                         # path =  f'{self.root}/{"/".join(comp_path_array)}/'
                         # module_path = comp_path_array[0]
                         components_path = f'{self.root_app}/components.py'
@@ -265,6 +271,9 @@ class Command(BaseCommand):
                             filepath = filedir + comp_name + '.' + ext
 
                             templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/{ext}.templ'))
+
+                            if ext == 'scss':
+                                templpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', f'../gentemplates/css.templ'))
 
                             Path(filedir).mkdir(parents=True, exist_ok=True)
 
