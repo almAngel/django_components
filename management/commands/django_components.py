@@ -7,7 +7,6 @@ from string import Template
 from importlib import reload
 from copy import deepcopy
 
-from ...slimit.mangler import mangle
 from ...slimit.minifier import minify
 from ...csscompressor import compress
 
